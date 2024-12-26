@@ -1,0 +1,180 @@
+bash
+todo-list-app/
+client/ (Frontend - React)
+server/ (Backend - Node.js, Express)
+models/ (Database schema)
+package.json
+
+
+Backend Setup (Node.js, Express)
+
+In the server folder:
+
+
+bash
+npm init -y
+npm install express mongoose
+
+
+Create a new file server.js:
+
+
+const express = require('express');
+const mongoose = require('mongoose');
+
+const app = express();
+app.use(express.json());
+
+mongoose.connect('mongodb://localhost/todo-list', { useNewUrlParser: true, useUnifiedTopology: true });
+
+const db = mongoose.connection;
+
+db.on('error', (err) => {
+  console.error(err);
+});
+
+db.once('open', () => {
+  console.log('Connected to MongoDB');
+});
+
+const taskRouter = require('./routes/tasks');
+app.use('/api/tasks', taskRouter);
+
+const port = 3001;
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+
+
+Create a new folder models and add a file Task.js:
+
+
+const mongoose = require('mongoose');
+
+const taskSchema = new mongoose.Schema({
+  title: String,
+  completed: Boolean,
+});
+
+const Task = mongoose.model('Task', taskSchema);
+
+module.exports = Task;
+
+
+Create a new folder routes and add a file tasks.js:
+
+
+const express = require('express');
+const router = express.Router();
+const Task = require('../models/Task');
+
+router.get('/', async (req, res) => {
+  try {
+    const tasks = await Task.find();
+    res.json(tasks);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching tasks' });
+  }
+});
+
+router.post('/', async (req, res) => {
+  try {
+    const task = new Task(req.body);
+    await task.save();
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ message: 'Error creating task' });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const task = await Task.findByIdAndUpdate((link unavailable), req.body, { new: true });
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating task' });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    await Task.findByIdAndRemove((link unavailable));
+    res.json({ message: 'Task deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting task' });
+  }
+});
+
+module.exports = router;
+
+
+Frontend Setup (React)
+
+In the client folder:
+
+
+bash
+npx create-react-app .
+
+
+Replace the content of src/App.js with:
+
+
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+function App() {
+  const [tasks, setTasks] = useState([]);
+  const [title, setTitle] = useState('');
+  const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/tasks')
+      .then(response => {
+        setTasks(response.data);
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }, []);
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    axios.post('http://localhost:3001/api/tasks', { title, completed })
+      .then(response => {
+        setTasks([...tasks, response.data]);
+        setTitle('');
+        setCompleted(false);
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  };
+
+  const handleUpdate = (task) => {
+    axios.put(`http://localhost:3001/api/tasks/${task._id}`, { title: task.title, completed: !task.completed })
+      .then(response => {
+        setTasks(tasks.map(t => t._id === task._id ? response.data : t));
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  };
+
+  const handleDelete = (task) => {
+    axios.delete(`http://localhost:3001/api/tasks/${task._id}`)
+      .then(response => {
+        setTasks(tasks.filter(t => t._id !== task._id));
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  };
+
+  return (
+    <div>
+      <h1>To-Do List</h1>
+      <form onSubmit={handleSubmit}>
+        <input type="text" value={title} onChange={(event) => setTitle(event.target.value)} />
+        <button type="submit">Add Task</button>
+      </form>
